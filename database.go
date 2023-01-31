@@ -14,7 +14,7 @@ type Database struct {
 	Password string
 }
 
-func NewDatabase(flags Flags) *Database {
+func NewDatabase(flags Config) *Database {
 	return &Database{
 		Host:     flags.Database().Host,
 		Name:     flags.Database().Name,
