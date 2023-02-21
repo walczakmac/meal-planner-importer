@@ -9,6 +9,8 @@ import (
 
 var ctx = context.Background()
 
+// todo create abstraction for filesystem so reading csv can be tested
+// todo create abstraction on db so meal service can be tested
 func main() {
 	host := flag.String("host", "", "Host")
 	port := flag.Int("port", 5432, "Port")

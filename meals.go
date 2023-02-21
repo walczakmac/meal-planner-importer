@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"meal-planner-importer/queries"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -52,7 +53,7 @@ func (service MealService) NewMeal(details []string) error {
 		return err
 	}
 
-	log.Printf("Added meal: %s\n", meal.Name)
+	//log.Printf("Added meal: %s\n", meal.Name)
 
 	return nil
 }
@@ -74,11 +75,49 @@ func (service MealService) GetMealCategoryByName(categoryName string, mealName s
 }
 
 func (service MealService) GetMealByName(name string) queries.Meal {
-	meal, err := service.queries.GetMeal(ctx, name)
-	if err != nil {
-		log.Printf("Error trying to find meal '%s', error: %s\n", name, err)
-	}
+	meal, _ := service.queries.GetMeal(ctx, name)
+	//if err != nil {
+	//	log.Printf("Error trying to find meal '%s', error: %s\n", name, err)
+	//}
 	return meal
+}
+
+func (service MealService) createIngredients(variantId int16, productValues string, snack bool) error {
+	for _, v := range strings.Split(productValues, "\n") {
+		service.createIngredient(variantId, v, snack)
+	}
+
+	return nil
+}
+
+func (service MealService) createIngredient(variantId int16, productLine string, snack bool) error {
+	pattern, _ := regexp.Compile("([0-9A-Za-zĘÓĄŚŁŻŹĆŃęóąśłżźćń\\s,\\-.%():]+) - ([0-9]+) g \\(([0-9.]+) x ([A-Za-zĘÓĄŚŁŻŹĆŃęóąśłżźćń]+)\\)")
+	matches := pattern.FindStringSubmatch(productLine)
+	if len(matches) == 0 {
+		log.Println("Couldn't parse: " + productLine)
+		return nil
+	}
+
+	product, err := service.queries.GetProduct(ctx, matches[1])
+	if err != nil {
+		log.Println("Couldn't find product with name: " + matches[1])
+		return err
+	}
+
+	amount, _ := strconv.ParseInt(matches[2], 10, 16)
+	_, err = service.queries.CreateIngredient(ctx, queries.CreateIngredientParams{
+		MealVariantID: variantId,
+		ProductID:     product.ID,
+		Amount:        int16(amount),
+		Unit:          "g",
+		Snack:         snack,
+	})
+	if err != nil {
+		log.Println("Couldn't create ingredient with name: " + productLine)
+		return err
+	}
+
+	return nil
 }
 
 func (service MealService) createMacro(variantId int16, mealName string, rowValue []string) error {
@@ -119,6 +158,13 @@ func (service MealService) createVariant(meal queries.Meal, rowValue []string) (
 			),
 		)
 	}
+
+	service.createIngredients(variant.ID, rowValue[1], false)
+	// create snack
+	if rowValue[8] != "" {
+		service.createIngredients(variant.ID, rowValue[8], true)
+	}
+
 	return variant, nil
 }
 
